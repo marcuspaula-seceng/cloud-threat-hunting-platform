@@ -1,5 +1,5 @@
 -- Detect CloudTrail tampering — attacker trying to cover tracks
--- If someone stops logging, that IS the incident
+-- Logging changes require investigation; they may also be authorised maintenance.
 -- Priority: CRITICAL — alert immediately
 
 SELECT
@@ -10,7 +10,7 @@ SELECT
     sourceipaddress,
     errorcode
 FROM cloudtrail_logs
-WHERE eventtime > date_add('day', -7, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('day', -7, now())
   AND eventsource = 'cloudtrail.amazonaws.com'
   AND eventname IN (
     'StopLogging',

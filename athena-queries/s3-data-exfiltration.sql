@@ -1,6 +1,6 @@
 -- Detect potential S3 data exfiltration
--- Large volume downloads, access from new IPs, or unusual hours
--- GDPR compliance: unauthorized data access must be detected within 72 hours
+-- High request or byte counts grouped by caller and source IP.
+-- Thresholds below are laboratory heuristics, not compliance guarantees.
 
 SELECT
     useridentity.arn AS caller_arn,
@@ -11,7 +11,7 @@ SELECT
     MIN(eventtime) AS first_access,
     MAX(eventtime) AS last_access
 FROM cloudtrail_logs
-WHERE eventtime > date_add('hour', -24, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('hour', -24, now())
   AND eventsource = 's3.amazonaws.com'
   AND eventname IN ('GetObject', 'SelectObjectContent')
 GROUP BY useridentity.arn, sourceipaddress
