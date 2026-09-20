@@ -1,6 +1,6 @@
 -- Detect security group modifications
--- Especially adding 0.0.0.0/0 rules — the #1 misconfiguration in AWS
--- Same as firewall rule audits Marcus ran quarterly at the independent lab
+-- Rules opening 0.0.0.0/0 are the highest-signal case; inspect request parameters
+-- to determine which rules changed, and review them against the approved baseline.
 
 SELECT
     eventtime,
@@ -10,7 +10,7 @@ SELECT
     sourceipaddress,
     awsregion
 FROM cloudtrail_logs
-WHERE eventtime > date_add('hour', -24, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('hour', -24, now())
   AND eventsource = 'ec2.amazonaws.com'
   AND eventname IN (
     'AuthorizeSecurityGroupIngress',

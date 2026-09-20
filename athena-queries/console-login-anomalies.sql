@@ -1,6 +1,6 @@
 -- Detect console login anomalies
--- Failed logins, logins from new locations, logins without MFA
--- Same audit Marcus ran on AD: last logon, failed attempts, MFA status
+-- Failed logins and logins without MFA; no location baseline is evaluated.
+-- Review CloudTrail console-login result and MFA fields.
 
 SELECT
     eventtime,
@@ -12,7 +12,7 @@ SELECT
     useragent,
     errorcode
 FROM cloudtrail_logs
-WHERE eventtime > date_add('day', -7, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('day', -7, now())
   AND eventname = 'ConsoleLogin'
   AND (
     errorcode = 'Failed authentication'

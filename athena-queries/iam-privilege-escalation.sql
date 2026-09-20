@@ -1,6 +1,6 @@
 -- Detect IAM privilege escalation attempts
--- Flags: non-admin users trying to create roles, attach policies, or modify permissions
--- In Marcus's AD experience: equivalent to a standard user trying to add themselves to Domain Admins
+-- Review identity and policy changes; ARN exclusions are heuristics, not role verification.
+-- Investigate whether each change was authorised and expected.
 
 SELECT
     eventtime,
@@ -11,7 +11,7 @@ SELECT
     sourceipaddress,
     useragent
 FROM cloudtrail_logs
-WHERE eventtime > date_add('hour', -24, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('hour', -24, now())
   AND eventname IN (
     'CreateRole',
     'CreateUser',

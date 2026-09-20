@@ -44,15 +44,25 @@ resource "aws_glue_catalog_table" "cloudtrail" {
 
   table_type = "EXTERNAL_TABLE"
   parameters = {
-    "projection.enabled"            = "true"
-    "projection.eventtime.type"     = "date"
-    "projection.eventtime.format"   = "yyyy/MM/dd"
-    "projection.eventtime.range"    = "2024/01/01,NOW"
-    "projection.eventtime.interval" = "1"
-    "projection.eventtime.interval.unit" = "DAYS"
-    "projection.region.type"        = "enum"
-    "projection.region.values"      = var.aws_region
-    "storage.location.template"     = "s3://${var.cloudtrail_bucket}/AWSLogs/${var.account_id}/CloudTrail/$${region}/$${eventtime}"
+    "projection.enabled"               = "true"
+    "projection.logdate.type"          = "date"
+    "projection.logdate.format"        = "yyyy/MM/dd"
+    "projection.logdate.range"         = "2024/01/01,NOW"
+    "projection.logdate.interval"      = "1"
+    "projection.logdate.interval.unit" = "DAYS"
+    "projection.region.type"           = "enum"
+    "projection.region.values"         = var.aws_region
+    "storage.location.template"        = "s3://${var.cloudtrail_bucket}/AWSLogs/${var.account_id}/CloudTrail/$${region}/$${logdate}/"
+  }
+
+  partition_keys {
+    name = "region"
+    type = "string"
+  }
+
+  partition_keys {
+    name = "logdate"
+    type = "string"
   }
 
   storage_descriptor {
@@ -64,43 +74,56 @@ resource "aws_glue_catalog_table" "cloudtrail" {
     }
 
     columns {
-      name = "eventversion" ; type = "string"
+      name = "eventversion"
+      type = "string"
     }
     columns {
-      name = "useridentity" ; type = "struct<type:string,principalid:string,arn:string,accountid:string>"
+      name = "useridentity"
+      type = "struct<type:string,principalid:string,arn:string,accountid:string>"
     }
     columns {
-      name = "eventtime" ; type = "string"
+      name = "eventtime"
+      type = "string"
     }
     columns {
-      name = "eventsource" ; type = "string"
+      name = "eventsource"
+      type = "string"
     }
     columns {
-      name = "eventname" ; type = "string"
+      name = "eventname"
+      type = "string"
     }
     columns {
-      name = "awsregion" ; type = "string"
+      name = "awsregion"
+      type = "string"
     }
     columns {
-      name = "sourceipaddress" ; type = "string"
+      name = "sourceipaddress"
+      type = "string"
     }
     columns {
-      name = "useragent" ; type = "string"
+      name = "useragent"
+      type = "string"
     }
     columns {
-      name = "errorcode" ; type = "string"
+      name = "errorcode"
+      type = "string"
     }
     columns {
-      name = "errormessage" ; type = "string"
+      name = "errormessage"
+      type = "string"
     }
     columns {
-      name = "requestparameters" ; type = "string"
+      name = "requestparameters"
+      type = "string"
     }
     columns {
-      name = "responseelements" ; type = "string"
+      name = "responseelements"
+      type = "string"
     }
     columns {
-      name = "additionaleventdata" ; type = "string"
+      name = "additionaleventdata"
+      type = "string"
     }
   }
 }
@@ -114,9 +137,19 @@ resource "aws_guardduty_detector" "main" {
   enable                       = true
   finding_publishing_frequency = "FIFTEEN_MINUTES"
   datasources {
-    s3_logs      { enable = true }
-    kubernetes   { audit_logs { enable = true } }
-    malware_protection { scan_ec2_instance_with_findings { ebs_volumes { enable = true } } }
+    s3_logs { enable = true }
+    kubernetes {
+      audit_logs {
+        enable = true
+      }
+    }
+    malware_protection {
+      scan_ec2_instance_with_findings {
+        ebs_volumes {
+          enable = true
+        }
+      }
+    }
   }
 }
 
@@ -135,7 +168,7 @@ resource "aws_securityhub_standards_subscription" "aws_foundational" {
 
 # SNS alerts by severity
 resource "aws_sns_topic" "critical" { name = "security-alerts-critical" }
-resource "aws_sns_topic" "high"     { name = "security-alerts-high" }
+resource "aws_sns_topic" "high" { name = "security-alerts-high" }
 
 resource "aws_sns_topic_subscription" "critical_email" {
   topic_arn = aws_sns_topic.critical.arn
@@ -159,7 +192,10 @@ resource "aws_cloudwatch_event_target" "critical_sns" {
   arn       = aws_sns_topic.critical.arn
 }
 
-variable "aws_region"        { type = string ; default = "us-east-1" }
-variable "alert_email"       { type = string }
+variable "aws_region" {
+  type    = string
+  default = "us-east-1"
+}
+variable "alert_email" { type = string }
 variable "cloudtrail_bucket" { type = string }
-variable "account_id"        { type = string }
+variable "account_id" { type = string }
