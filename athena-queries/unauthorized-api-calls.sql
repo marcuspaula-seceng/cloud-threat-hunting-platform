@@ -1,6 +1,6 @@
--- Detect API calls from unauthorized IPs or outside business hours
--- Same concept as Grafana alert rules Marcus built at the independent lab
--- but applied to CloudTrail instead of infrastructure metrics
+-- Find API calls returning selected authorisation errors.
+-- This query does not validate source-IP allowlists or business hours.
+-- Review the caller, operation and error in context.
 
 SELECT
     eventtime,
@@ -13,7 +13,7 @@ SELECT
     errorcode,
     errormessage
 FROM cloudtrail_logs
-WHERE eventtime > date_add('hour', -24, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('hour', -24, now())
   AND errorcode IN ('AccessDenied', 'UnauthorizedAccess', 'Client.UnauthorizedAccess')
 ORDER BY eventtime DESC
 LIMIT 500;

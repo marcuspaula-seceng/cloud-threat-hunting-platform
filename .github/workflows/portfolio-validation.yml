@@ -1,0 +1,100 @@
+name: portfolio-validation
+
+# Runs on every pull request so that query-only and documentation-only changes
+# are still gated. Nothing here contacts AWS or applies infrastructure.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          set -e
+          bad=0
+          for f in $(find . -name '*.sh' -not -path './.git/*'); do
+            bash -n "$f" || { echo "FAIL $f"; bad=$((bad+1)); }
+          done
+          echo "Checked shell syntax; $bad failure(s)."
+          [ "$bad" -eq 0 ]
+
+      - name: Athena query sanity
+        run: |
+          set -e
+          bad=0
+          for f in athena-queries/*.sql; do
+            open=$(tr -cd '(' < "$f" | wc -c)
+            close=$(tr -cd ')' < "$f" | wc -c)
+            if [ "$open" -ne "$close" ]; then
+              echo "FAIL $f: unbalanced parentheses ($open vs $close)"; bad=$((bad+1))
+            fi
+            if ! grep -q ';' "$f"; then
+              echo "FAIL $f: no statement terminator"; bad=$((bad+1))
+            fi
+            # eventtime is a varchar in the CloudTrail schema. Comparing it to a
+            # timestamp without a cast is the defect this guard prevents.
+            if grep -qE 'WHERE[[:space:]]+eventtime[[:space:]]*[<>]' "$f"; then
+              echo "FAIL $f: eventtime compared without from_iso8601_timestamp()"; bad=$((bad+1))
+            fi
+          done
+          echo "Checked $(ls athena-queries/*.sql | wc -l) query file(s); $bad failure(s)."
+          [ "$bad" -eq 0 ]
+
+      - name: Markdown structure and relative links
+        run: |
+          set -e
+          bad=0
+          for f in $(find . -name '*.md' -not -path './.git/*'); do
+            fences=$(grep -c '^\s*```' "$f" || true)
+            if [ $((fences % 2)) -ne 0 ]; then
+              echo "FAIL $f: unbalanced code fences"; bad=$((bad+1))
+            fi
+            for link in $(grep -oE '\]\([^)#][^)]*\.md[^)]*\)' "$f" | sed -E 's/^\]\(//; s/\)$//; s/#.*$//' || true); do
+              target="$(dirname "$f")/$link"
+              if [ ! -f "$target" ]; then
+                echo "FAIL $f: broken relative link -> $link"; bad=$((bad+1))
+              fi
+            done
+          done
+          echo "Checked Markdown structure and links; $bad failure(s)."
+          [ "$bad" -eq 0 ]
+
+      - name: No credentials or personal contact details
+        run: |
+          set -e
+          bad=0
+          if grep -rEn 'AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY' \
+               --exclude-dir=.git . ; then
+            echo 'FAIL: credential-shaped string found'; bad=1
+          fi
+          if grep -rEn '[A-Za-z0-9._%+-]+@(me|gmail|outlook|hotmail)\.com' \
+               --exclude-dir=.git . ; then
+            echo 'FAIL: personal email address found'; bad=1
+          fi
+          echo "Credential and contact scan complete; $bad failure(s)."
+          [ "$bad" -eq 0 ]
+
+      - name: Terraform format
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+
+      - name: Terraform fmt and validate
+        working-directory: terraform
+        run: |
+          set -e
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate

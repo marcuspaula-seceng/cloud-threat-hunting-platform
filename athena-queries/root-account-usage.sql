@@ -1,6 +1,6 @@
 -- Detect ANY root account activity
--- Root should NEVER be used in production — Marcus enforced this via SCP at the independent lab
--- Same principle as disabling local admin in AD environments
+-- Review root activity against documented, authorised root-only operations.
+-- Activity is an investigation signal, not proof of compromise.
 
 SELECT
     eventtime,
@@ -11,6 +11,6 @@ SELECT
     awsregion,
     errorcode
 FROM cloudtrail_logs
-WHERE eventtime > date_add('day', -30, now())
+WHERE from_iso8601_timestamp(eventtime) > date_add('day', -30, now())
   AND useridentity.type = 'Root'
 ORDER BY eventtime DESC;
